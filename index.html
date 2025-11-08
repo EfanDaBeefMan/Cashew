@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+<title>Russian Poker — Mobile v2</title>
+<style>
+  :root{
+    --bg:#0f1117; --panel:#151a24; --muted:#9aa4b2; --text:#e6edf3; --accent:#4ade80; --accent2:#60a5fa; --danger:#f87171; --card:#1f2633;
+    --chip:#ffd28a; --chip-text:#4b3b1a; --border:#223043;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;background:var(--bg);color:var(--text);font:16px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial}
+  header{position:sticky;top:0;z-index:10;padding:12px 14px;border-bottom:1px solid var(--border);background:var(--panel)}
+  .title{font-weight:700;font-size:18px}
+  .pill{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;background:#0f1420;border:1px solid var(--border)}
+  .chip{display:inline-flex;align-items:center;gap:6px;background:var(--chip);color:var(--chip-text);border-radius:999px;padding:6px 10px;font-weight:700}
+  .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  input[type=number], select{appearance:none;-webkit-appearance:none;background:#0f1420;border:1px solid var(--border);color:var(--text);
+                             padding:10px;border-radius:10px;font-size:16px}
+  main{padding:12px;display:flex;flex-direction:column;gap:12px;max-width:720px;margin:0 auto}
+  .panel{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:12px}
+  h3{margin:0 0 10px 0;font-size:16px}
+  .help{color:var(--muted);font-size:14px}
+  .cards{display:flex;flex-wrap:wrap;gap:8px}
+  .card{user-select:none;-webkit-user-select:none;touch-action:manipulation;min-width:48px;padding:10px 12px;border-radius:12px;background:var(--card);
+        border:1px solid var(--border);text-align:center;font-weight:700}
+  .card[data-suit="♥"], .card[data-suit="♦"]{color:#ffb4b4}
+  .slot{padding:10px;border:1px dashed var(--border);border-radius:12px;background:#0f1420}
+  .slot-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+  .tiny{color:var(--muted);font-size:12px}
+  .kpi{display:flex;flex-wrap:wrap;gap:8px}
+  .kpi .pill{padding:6px 10px}
+  .lane{margin-top:8px;padding:8px;border-radius:10px;background:#0f1420;border:1px solid var(--border)}
+  .board{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+  .good{color:var(--accent)} .bad{color:var(--danger)}
+  .tag{border:1px solid var(--border);border-radius:999px;padding:5px 10px;color:var(--muted)}
+  .actions{position:sticky;bottom:0;z-index:12;background:linear-gradient(180deg, rgba(15,17,23,.0), rgba(21,26,36,1) 35%), var(--panel);
+           border-top:1px solid var(--border);padding:10px 12px;display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  button{width:100%;padding:14px 12px;border-radius:12px;border:1px solid var(--border);background:#1f2937;color:var(--text);font-weight:600}
+  button:active{transform:scale(.98)} button:disabled{opacity:.55}
+  .btn-blue{background:#1a2d46;border-color:#284765}
+  .btn-gold{background:#3b2e19;border-color:#5b4628}
+  .btn-green{background:#1b3b2a;border-color:#255a3d}
+  .btn-red{background:#3b1f21;border-color:#5a2b2f}
+</style>
+</head>
+<body>
+<header>
+  <div class="title">Russian Poker — Mobile v2</div>
+  <div class="row" style="margin-top:8px">
+    <span class="pill">Balance: $<span id="balance">30</span></span>
+    <span class="chip">🥜 <span id="cashews">30</span> cashews</span>
+    <span class="pill">Wager $<input id="wager" type="number" min="1" step="1" value="1" style="width:80px"></span>
+    <button id="editBal" class="btn-blue" style="width:auto;padding:8px 12px">Edit Balance</button>
+  </div>
+  <div class="row" style="margin-top:8px">
+    <span class="pill">Bot:
+      <select id="botSelect">
+        <option value="ideal">Bot 1 — Ideal (hardest)</option>
+        <option value="fivecard">Bot 2 — Five-Card first</option>
+        <option value="holdem">Bot 3 — Hold’em first</option>
+      </select>
+    </span>
+    <span class="pill">Reveal ms <input id="revealMs" type="number" min="100" step="100" value="450" style="width:84px"></span>
+  </div>
+</header>
+
+<main>
+  <section class="panel">
+    <h3>Round</h3>
+    <div class="help">Deal → tap your 9 cards to place them (first to 5-card, then Hold’em A, then B). Bot sets **blind**. Tiebreak: most lanes wins; only **1–1–1** is a push. Sweep pays **2×**.</div>
+  </section>
+
+  <section class="panel">
+    <h3>Status</h3>
+    <div class="kpi">
+      <span class="pill">5-Card: <span id="lane5">—</span></span>
+      <span class="pill">A: <span id="laneA">—</span></span>
+      <span class="pill">B: <span id="laneB">—</span></span>
+      <span class="pill">Score: <span id="score">0–0</span></span>
+    </div>
+    <div class="lane">
+      <div class="slot-header"><strong>Board A</strong><span class="tiny">reveals 1 by 1</span></div>
+      <div id="boardA" class="board"></div>
+    </div>
+    <div class="lane">
+      <div class="slot-header"><strong>Board B</strong><span class="tiny">reveals after A</span></div>
+      <div id="boardB" class="board"></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h3>Your 9 Cards</h3>
+    <div id="yourNine" class="cards"></div>
+
+    <div class="row" style="margin-top:8px">
+      <div class="slot" style="flex:1 1 100%">
+        <div class="slot-header"><strong>Your 5-card hand</strong><span class="tiny" id="count5">0/5</span></div>
+        <div id="you5" class="cards"></div>
+      </div>
+      <div class="slot" style="flex:1 1 100%">
+        <div class="slot-header"><strong>Hold’em A</strong><span class="tiny" id="countA">0/2</span></div>
+        <div id="youA" class="cards"></div>
+      </div>
+      <div class="slot" style="flex:1 1 100%">
+        <div class="slot-header"><strong>Hold’em B</strong><span class="tiny" id="countB">0/2</span></div>
+        <div id="youB" class="cards"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h3>Bot (blind set)</h3>
+    <div class="tiny">Bot cards are read-only (you can’t tap them).</div>
+    <div class="row" style="margin-top:8px">
+      <div class="slot" style="flex:1 1 100%">
+        <div class="slot-header"><strong>Bot 5-card</strong><span class="tiny" id="bot5Hdr">—</span></div>
+        <div id="bot5" class="cards"></div>
+      </div>
+      <div class="slot" style="flex:1 1 100%">
+        <div class="slot-header"><strong>Bot A</strong><span class="tiny" id="botAHdr">—</span></div>
+        <div id="botA" class="cards"></div>
+      </div>
+      <div class="slot" style="flex:1 1 100%">
+        <div class="slot-header"><strong>Bot B</strong><span class="tiny" id="botBHdr">—</span></div>
+        <div id="botB" class="cards"></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div class="actions">
+  <button id="dealBtn" class="btn-blue">🃏 Deal</button>
+  <button id="autoBtn" class="btn-gold">✨ Auto-Set Me</button>
+  <button id="runBoards" class="btn-green" disabled>▶️ Reveal Boards</button>
+  <button id="reset" class="">↺ Reset Slots</button>
+</div>
+
+<script>
+/* ===== Core helpers ===== */
+const RANKS=['2','3','4','5','6','7','8','9','T','J','Q','K','A'];
+const SUITS=['♠','♥','♦','♣'];
+const RVAL=Object.fromEntries(RANKS.map((r,i)=>[r,i+2]));
+let balance=Number(localStorage.getItem('cashewsBalance')??30);
+let wager=Number(localStorage.getItem('cashewsWager')??1);
+function saveState(){localStorage.setItem('cashewsBalance',String(balance));localStorage.setItem('cashewsWager',String(wager));}
+function updateBalanceUI(){document.getElementById('balance').textContent=balance;document.getElementById('cashews').textContent=balance;document.getElementById('wager').value=wager;}
+
+let yourNine=[], botNine=[], stub=[];
+let you5=[], youA=[], youB=[];
+let bot5=[], botA=[], botB=[];
+let boardA=[], boardB=[];
+let lane5='—', laneA='—', laneB='—';
+
+function makeDeck(){const d=[];for(const s of SUITS)for(const r of RANKS)d.push(r+s);return d;}
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+function split(c){return [c[0],c.slice(1)];}
+function cardEl(c, interactive=true){
+  const el=document.createElement('div');const [r,s]=split(c);
+  el.className='card';el.dataset.card=c;el.dataset.suit=s;el.textContent=r+s;
+  if(interactive){el.onclick=()=>togglePick(c);} // 👈 prevent clicks on bot/board by passing interactive=false
+  return el;
+}
+function renderRow(id,cards,interactive=true){const p=document.getElementById(id);p.innerHTML='';cards.forEach(c=>p.appendChild(cardEl(c,interactive)));}
+
+/* ===== Evaluator ===== */
+function ranksOf(cards){return cards.map(c=>RVAL[c[0]]).sort((a,b)=>b-a);}
+function counts(arr){const m=new Map();arr.forEach(v=>m.set(v,(m.get(v)||0)+1));return m;}
+function uniqDesc(arr){return [...new Set(arr)].sort((a,b)=>b-a);}
+function isStraight(uniqueDesc){
+  if(uniqueDesc.length<5)return[false,null];
+  const vals=uniqueDesc.slice();if(vals.includes(14))vals.push(1);
+  const s=new Set(vals);
+  for(let hi=14;hi>=5;hi--){const seq=[hi,hi-1,hi-2,hi-3,hi-4];if(seq.every(v=>s.has(v)))return[true,seq[0]===5?5:hi];}
+  return[false,null];
+}
+function best5of7(cards){
+  const rs=ranksOf(cards);const cs=counts(rs);
+  const suitCount=counts(cards.map(c=>c.slice(1)));
+  let flushSuit=null;for(const [s,c] of suitCount.entries()){if(c>=5){flushSuit=s;break;}}
+  let flushRanks=[];if(flushSuit){flushRanks=cards.filter(c=>c.slice(1)===flushSuit).map(c=>RVAL[c[0]]).sort((a,b)=>b-a);}
+  const u=uniqDesc(rs);const[hasSt,stHi]=isStraight(u);
+  if(flushSuit){const uf=uniqDesc(flushRanks);const[sf,sfHi]=isStraight(uf);if(sf)return[9,sfHi];}
+  const groups=[...cs.entries()].sort((a,b)=>b[1]-a[1]||b[0]-a[0]);
+  if(groups[0]&&groups[0][1]===4){const q=groups[0][0];const k=u.find(v=>v!==q);return[8,q,k];}
+  const trips=groups.filter(g=>g[1]===3).map(g=>g[0]).sort((a,b)=>b-a);
+  const pairs=groups.filter(g=>g[1]===2).map(g=>g[0]).sort((a,b)=>b-a);
+  if(trips.length>=2)return[7,trips[0],trips[1]];
+  if(trips.length>=1&&pairs.length>=1)return[7,trips[0],pairs[0]];
+  if(flushSuit)return[6,...flushRanks.slice(0,5)];
+  if(hasSt)return[5,stHi];
+  if(trips.length){const t=trips[0];const k=u.filter(v=>v!==t).slice(0,2);return[4,t,...k];}
+  if(pairs.length>=2){const[p1,p2]=pairs.slice(0,2);const k=u.find(v=>v!==p1&&v!==p2);return[3,p1,p2,k];}
+  if(pairs.length===1){const p=pairs[0];const k=u.filter(v=>v!==p).slice(0,3);return[2,p,...k];}
+  return[1,...u.slice(0,5)];
+}
+function cmpRank(a,b){const L=Math.max(a.length,b.length);for(let i=0;i<L;i++){const x=a[i]??-999,y=b[i]??-999;if(x>y)return 1;if(x<y)return-1;}return 0;}
+
+/* ===== Hole scoring & splits ===== */
+function holeScore(h){
+  const a=RVAL[h[0][0]], b=RVAL[h[1][0]], hi=Math.max(a,b), lo=Math.min(a,b);
+  const suited=h[0].slice(1)===h[1].slice(1), gap=Math.abs(hi-lo)-1;
+  let s=0; if(hi===lo){s+=50+hi;}else{s+=(hi+lo)/2; if(suited)s+=6; if(gap===0)s+=6; else if(gap===1)s+=3; else if(gap===2)s+=1;}
+  return s;
+}
+function bestSplitOf4(four){
+  const idx=[0,1,2,3];let best=null;
+  for(let i=0;i<4;i++)for(let j=i+1;j<4;j++){
+    const h1=[four[i],four[j]], h2=idx.filter(k=>k!==i&&k!==j).map(k=>four[k]);
+    const score=holeScore(h1)+holeScore(h2); if(!best||score>best.score)best={h1,h2,score};
+  } return[best.h1,best.h2];
+}
+function bestSplitBalanced(four){
+  const idx=[0,1,2,3];let best=null;
+  for(let i=0;i<4;i++)for(let j=i+1;j<4;j++){
+    const h1=[four[i],four[j]], h2=idx.filter(k=>k!==i&&k!==j).map(k=>four[k]);
+    const s1=holeScore(h1), s2=holeScore(h2), obj=0.7*(s1+s2)+0.3*Math.min(s1,s2);
+    if(!best||obj>best.obj)best={h1,h2,obj};
+  } return[best.h1,best.h2];
+}
+function isLock(rank){const cat=rank[0]; if(cat>=7)return true; if(cat===6)return true; if(cat===5)return rank[1]>=12; return false;}
+
+/* ===== Bot strategies ===== */
+// Bot 2: Five-Card first (min-cost lock; 70/30 fallback)
+function botSet_FiveCard(nine){
+  let bestLock=null,bestLockObj=-1,bh=null;
+  for(let a=0;a<9;a++)for(let b=a+1;b<9;b++)for(let c=b+1;c<9;c++)for(let d=c+1;d<9;d++)for(let e=d+1;e<9;e++){
+    const five=[nine[a],nine[b],nine[c],nine[d],nine[e]], r=best5of7(five);
+    if(isLock(r)){const rest=nine.filter((_,i)=>![a,b,c,d,e].includes(i)); const [h1,h2]=bestSplitOf4(rest);
+      const obj=holeScore(h1)+holeScore(h2); if(obj>bestLockObj){bestLockObj=obj;bestLock=five;bh=[h1,h2];}}
+  }
+  if(bestLock) return{five:bestLock,A:bh[0],B:bh[1]};
+  // fallback: maximize 0.7*five + 0.3*holes
+  let best=null,bRank=null,bSplit=null,bObj=-1;
+  for(let a=0;a<9;a++)for(let b=a+1;b<9;b++)for(let c=b+1;c<9;c++)for(let d=c+1;d<9;d++)for(let e=d+1;e<9;e++){
+    const five=[nine[a],nine[b],nine[c],nine[d],nine[e]], r=best5of7(five);
+    const rest=nine.filter((_,i)=>![a,b,c,d,e].includes(i)); const [h1,h2]=bestSplitOf4(rest);
+    const fiveScalar=r[0]*100 + (r[1]||0)*0.01; const holes=holeScore(h1)+holeScore(h2);
+    const obj=0.7*fiveScalar + 0.3*holes; if(obj>bObj){bObj=obj;best=five;bRank=r;bSplit=[h1,h2];}
+  }
+  return{five:best,A:bSplit[0],B:bSplit[1]};
+}
+// Bot 3: Hold’em first (balanced two lanes, with massive-difference override)
+function botSet_Holdem(nine){
+  let bestFive=null,bestH=null,bObj=-1;
+  for(let a=0;a<9;a++)for(let b=a+1;b<9;b++)for(let c=b+1;c<9;c++)for(let d=c+1;d<9;d++)for(let e=d+1;e<9;e++){
+    const five=[nine[a],nine[b],nine[c],nine[d],nine[e]], rest=nine.filter((_,i)=>![a,b,c,d,e].includes(i));
+    const [h1,h2]=bestSplitBalanced(rest); const s1=holeScore(h1), s2=holeScore(h2);
+    const obj=0.7*(s1+s2)+0.3*Math.min(s1,s2); if(obj>bObj){bObj=obj;bestFive=five;bestH=[h1,h2];}
+  }
+  // massive-difference: if absolute best 5 from 9 is flush+ and current <= two pair, take it
+  let topFive=null, topRank=null;
+  for(let a=0;a<9;a++)for(let b=a+1;b<9;b++)for(let c=b+1;c<9;c++)for(let d=c+1;d<9;d++)for(let e=d+1;e<9;e++){
+    const five=[nine[a],nine[b],nine[c],nine[d],nine[e]], r=best5of7(five);
+    if(!topRank||cmpRank(r,topRank)>0){topRank=r;topFive=five;}
+  }
+  const currCat=best5of7(bestFive)[0];
+  if(topRank[0]>=6 && currCat<=3){
+    const rest=nine.filter(c=>!topFive.includes(c)); const [h1,h2]=bestSplitBalanced(rest);
+    return{five:topFive,A:h1,B:h2};
+  }
+  return{five:bestFive,A:bestH[0],B:bestH[1]};
+}
+// Bot 1: Ideal (hardest) — stronger objective (lock bonus, ace preservation, balance, tie-bias)
+function botSet_Ideal(nine){
+  let best=null,bPack=null,bScore=-1;
+  for(let a=0;a<9;a++)for(let b=a+1;b<9;b++)for(let c=b+1;c<9;c++)for(let d=c+1;d<9;d++)for(let e=d+1;e<9;e++){
+    const five=[nine[a],nine[b],nine[c],nine[d],nine[e]], r=best5of7(five), rest=nine.filter((_,i)=>![a,b,c,d,e].includes(i));
+    // choose leftover split that maximizes holes + balance
+    const splits=[bestSplitOf4(rest), bestSplitBalanced(rest)];
+    for(const sp of splits){
+      const h1=sp[0], h2=sp[1]; const s1=holeScore(h1), s2=holeScore(h2);
+      const fiveScalar=r[0]*120 + (r[1]||0)*0.02; // five-card weighted a bit heavier than Bot2
+      const holes = s1+s2, bal=Math.min(s1,s2);
+      const lockB = isLock(r) ? 20 : 0;
+      // Ace preservation: penalize burying both aces in 5-card if not needed for the lock
+      const fiveRanks=five.map(c=>c[0]); const acesInFive=fiveRanks.filter(x=>x==='A').length;
+      const acePenalty = (acesInFive>=2 && r[0]<=6)? 8 : 0;
+      // Tie-friendly bias for second hole (offsuit broadway-ish)
+      const tieBias = tieFriendly(h1)+tieFriendly(h2);
+      const score = fiveScalar + 0.9*holes + 0.4*bal + lockB + 1.0*tieBias - acePenalty;
+      if(score>bScore){bScore=score;best=five;bPack=[h1,h2];}
+    }
+  }
+  return{five:best,A:bPack[0],B:bPack[1]};
+}
+function tieFriendly(h){
+  const a=RVAL[h[0][0]], b=RVAL[h[1][0]], suited=h[0].slice(1)===h[1].slice(1);
+  const isBroad=(Math.max(a,b)>=11 && Math.min(a,b)>=10); return (!suited && isBroad)?1.5:0;
+}
+
+/* ===== Game flow ===== */
+function setCounts(){document.getElementById('count5').textContent=`${you5.length}/5`;document.getElementById('countA').textContent=`${youA.length}/2`;document.getElementById('countB').textContent=`${youB.length}/2`;}
+function setStatus(){
+  document.getElementById('lane5').innerHTML=lane5==='You'?'<span class="good">You</span>':lane5==='Bot'?'<span class="bad">Bot</span>':lane5;
+  document.getElementById('laneA').innerHTML=laneA==='You'?'<span class="good">You</span>':laneA==='Bot'?'<span class="bad">Bot</span>':laneA;
+  document.getElementById('laneB').innerHTML=laneB==='You'?'<span class="good">You</span>':laneB==='Bot'?'<span class="bad">Bot</span>':laneB;
+  const wYou=(lane5==='You')+(laneA==='You')+(laneB==='You'); const wBot=(lane5==='Bot')+(laneA==='Bot')+(laneB==='Bot');
+  document.getElementById('score').textContent=`${wYou}–${wBot}`;
+}
+function freshRound(){
+  const d=shuffle(makeDeck());
+  // reset EVERYTHING clean (fix #1)
+  yourNine=d.slice(0,9); botNine=d.slice(9,18); stub=d.slice(18);
+  you5=[]; youA=[]; youB=[]; bot5=[]; botA=[]; botB=[]; boardA=[]; boardB=[]; lane5=laneA=laneB='—';
+  renderRow('yourNine', yourNine, true);
+  renderRow('you5',[], true); renderRow('youA',[], true); renderRow('youB',[], true);
+  renderRow('bot5',[], false); renderRow('botA',[], false); renderRow('botB',[], false); // read-only (fix #2)
+  renderRow('boardA',[], false); renderRow('boardB',[], false);
+  document.getElementById('bot5Hdr').textContent='—'; document.getElementById('botAHdr').textContent='—'; document.getElementById('botBHdr').textContent='—';
+  setCounts(); setStatus();
+  document.getElementById('runBoards').disabled=true;
+}
+function togglePick(card){
+  const inPool=yourNine.includes(card);
+  if(inPool){
+    if(you5.length<5) you5.push(card);
+    else if(youA.length<2) youA.push(card);
+    else if(youB.length<2) youB.push(card);
+    else return alert('All hands full (5 + 2 + 2). Tap a card in a slot to remove it.');
+    yourNine=yourNine.filter(c=>c!==card);
+  }else{
+    if(you5.includes(card)) you5=you5.filter(c=>c!==card);
+    else if(youA.includes(card)) youA=youA.filter(c=>c!==card);
+    else if(youB.includes(card)) youB=youB.filter(c=>c!==card);
+    yourNine.push(card);
+  }
+  renderRow('yourNine', yourNine, true); renderRow('you5', you5, true); renderRow('youA', youA, true); renderRow('youB', youB, true);
+  setCounts();
+  const ready=(you5.length===5&&youA.length===2&&youB.length===2);
+  document.getElementById('runBoards').disabled=!ready;
+  // when ready, bot sets blind & we resolve 5-card lane immediately
+  if(ready && !bot5.length){
+    const sel=document.getElementById('botSelect').value;
+    const s = sel==='ideal'?botSet_Ideal(botNine): (sel==='holdem'?botSet_Holdem(botNine):botSet_FiveCard(botNine));
+    bot5=s.five; botA=s.A; botB=s.B;
+    renderRow('bot5', bot5, false); renderRow('botA', botA, false); renderRow('botB', botB, false);
+    document.getElementById('bot5Hdr').textContent='set'; document.getElementById('botAHdr').textContent='set'; document.getElementById('botBHdr').textContent='set';
+    const cmp=cmpRank(best5of7(you5), best5of7(bot5));
+    lane5 = cmp>0?'You':cmp<0?'Bot':'Tie';
+    setStatus();
+  }
+}
+
+function sleep(ms){return new Promise(res=>setTimeout(res,ms));}
+async function revealBoard(targetId, takeFromStub, youHole, botHole){
+  const ms = Math.max(100, parseInt(document.getElementById('revealMs').value||'450',10));
+  const cards=[];
+  renderRow(targetId, cards, false);
+  for(let i=0;i<5;i++){
+    const c=takeFromStub(); cards.push(c);
+    renderRow(targetId, cards, false);
+    await sleep(ms); // 👈 suspenseful one-by-one reveal (fix #4)
+  }
+  const cmp=cmpRank(best5of7([...youHole, ...cards]), best5of7([...botHole, ...cards]));
+  return {cards, lane: (cmp>0?'You':cmp<0?'Bot':'Tie')};
+}
+
+async function runBoards(){
+  if(!(you5.length===5&&youA.length===2&&youB.length===2)) return alert('Set your 5 + A + B first.');
+  // reveal A then B, auto-settle at the end (fix #3)
+  const draw=()=>stub.shift();
+  const A=await revealBoard('boardA', draw, youA, botA); boardA=A.cards; laneA=A.lane; setStatus();
+  const B=await revealBoard('boardB', draw, youB, botB); boardB=B.cards; laneB=B.lane; setStatus();
+  // auto-settle
+  const winsYou=(lane5==='You')+(laneA==='You')+(laneB==='You');
+  const winsBot=(lane5==='Bot')+(laneA==='Bot')+(laneB==='Bot');
+  const ties=(lane5==='Tie')+(laneA==='Tie')+(laneB==='Tie');
+  let outcome='Push', delta=0;
+  if(winsYou>winsBot){ outcome=(winsYou===1&&winsBot===1&&ties===1)?'Push':'You win'; if(outcome!=='Push') delta=wager*((winsYou===3)?2:1); }
+  else if(winsBot>winsYou){ outcome=(winsYou===1&&winsBot===1&&ties===1)?'Push':'Bot wins'; if(outcome!=='Push') delta=-wager*((winsBot===3)?2:1); }
+  balance += delta; saveState(); updateBalanceUI();
+  alert(`${outcome}\n\n5-Card: ${lane5}\nA: ${laneA}\nB: ${laneB}\n\n${delta===0?'No change':(delta>0?'+$'+delta:'-$'+(-delta))}`);
+  document.getElementById('runBoards').disabled=true;
+}
+
+/* Auto-set for the player (quality of life) */
+function autoSetYou(){
+  if(yourNine.length!==9)return;
+  // try to lock a 5-card
+  let bestLock=null,bObj=-1,bH=null,nine=[...yourNine];
+  for(let a=0;a<9;a++)for(let b=a+1;b<9;b++)for(let c=b+1;c<9;c++)for(let d=c+1;d<9;d++)for(let e=d+1;e<9;e++){
+    const five=[nine[a],nine[b],nine[c],nine[d],nine[e]], r=best5of7(five);
+    if(isLock(r)){const rest=nine.filter((_,i)=>![a,b,c,d,e].includes(i)); const [h1,h2]=bestSplitOf4(rest);
+      const obj=holeScore(h1)+holeScore(h2); if(obj>bObj){bObj=obj;bestLock=five;bH=[h1,h2];}}
+  }
+  if(bestLock){you5=[...bestLock]; const rest=yourNine.filter(c=>!you5.includes(c)); const [h1,h2]=bestSplitOf4(rest); youA=[...h1]; youB=[...h2];}
+  else{
+    // fallback: pick best two holes by brute force 9C4; dump rest to 5-card
+    let best=null,bScore=-1;const n=[...yourNine];
+    for(let i=0;i<9;i++)for(let j=i+1;j<9;j++)for(let k=j+1;k<9;k++)for(let l=k+1;l<9;l++){
+      const four=[n[i],n[j],n[k],n[l]], [h1,h2]=bestSplitOf4(four); const score=holeScore(h1)+holeScore(h2);
+      if(score>bScore){bScore=score;best=[h1,h2];}
+    }
+    youA=[...best[0]]; youB=[...best[1]];
+    const used=new Set([...youA,...youB]); you5=yourNine.filter(c=>!used.has(c)).slice(0,5);
+  }
+  yourNine=yourNine.filter(c=>![...you5,...youA,...youB].includes(c));
+  renderRow('yourNine', yourNine, true); renderRow('you5', you5, true); renderRow('youA', youA, true); renderRow('youB', youB, true);
+  setCounts();
+  if(!bot5.length){
+    const sel=document.getElementById('botSelect').value;
+    const s = sel==='ideal'?botSet_Ideal(botNine): (sel==='holdem'?botSet_Holdem(botNine):botSet_FiveCard(botNine));
+    bot5=s.five; botA=s.A; botB=s.B;
+    renderRow('bot5', bot5, false); renderRow('botA', botA, false); renderRow('botB', botB, false);
+    document.getElementById('bot5Hdr').textContent='set'; document.getElementById('botAHdr').textContent='set'; document.getElementById('botBHdr').textContent='set';
+    const cmp=cmpRank(best5of7(you5), best5of7(bot5)); lane5 = cmp>0?'You':cmp<0?'Bot':'Tie'; setStatus();
+    document.getElementById('runBoards').disabled=false;
+  }
+}
+
+/* Events */
+document.getElementById('dealBtn').onclick=freshRound;
+document.getElementById('autoBtn').onclick=autoSetYou;
+document.getElementById('runBoards').onclick=runBoards;
+document.getElementById('reset').onclick=()=>{
+  yourNine=[...yourNine,...you5,...youA,...youB]; you5=[]; youA=[]; youB=[]; boardA=[]; boardB=[]; lane5=laneA=laneB='—';
+  renderRow('yourNine', yourNine, true); renderRow('you5',[], true); renderRow('youA',[], true); renderRow('youB',[], true);
+  renderRow('boardA',[], false); renderRow('boardB',[], false); setCounts(); setStatus();
+  document.getElementById('runBoards').disabled=true;
+};
+document.getElementById('editBal').onclick=()=>{
+  const v=prompt('Set starting balance ($):', String(balance)); if(v===null)return;
+  const n=Math.max(0, parseInt(v||'0',10)|0); balance=n; saveState(); updateBalanceUI();
+};
+document.getElementById('wager').oninput=(e)=>{wager=Math.max(1,parseInt(e.target.value||'1',10)); saveState();};
+
+/* Init */
+updateBalanceUI(); freshRound();
+</script>
+</body>
+</html>
